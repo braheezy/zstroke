@@ -2,7 +2,7 @@
 
 A port and demo of [perfect-freehand](https://github.com/steveruizok/perfect-freehand).
 
-[!demo](./demo.mp4)
+![demo](./demo.mp4)
 
 ## Use as a dependency
 
