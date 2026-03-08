@@ -2,6 +2,8 @@
 
 A port and demo of [perfect-freehand](https://github.com/steveruizok/perfect-freehand).
 
+[![demo]](./demo.mov)
+
 ## Use as a dependency
 
 Add to your project
