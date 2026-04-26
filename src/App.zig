@@ -85,7 +85,7 @@ pub fn init(allocator: std.mem.Allocator, build_stroke_mesh: BuildStrokeMeshFn) 
 
     zglfw.windowHint(.client_api, .no_api);
     zglfw.windowHint(.resizable, false);
-    const window = try zglfw.createWindow(800, 600, "zstroke", null);
+    const window = try zglfw.createWindow(800, 600, "zstroke", null, null);
     errdefer zglfw.destroyWindow(window);
 
     const app = try allocator.create(App);

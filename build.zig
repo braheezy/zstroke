@@ -25,7 +25,7 @@ pub fn build(b: *std.Build) void {
         }),
     });
 
-    exe.linkLibrary(zglfw_dep.artifact("glfw"));
+    exe.root_module.linkLibrary(zglfw_dep.artifact("glfw"));
 
     b.installArtifact(exe);
 
