@@ -1,11 +1,21 @@
 const std = @import("std");
+const zonk_build = @import("zonk");
 
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const zgpu = b.dependency("zgpu", .{}).module("root");
-    const zglfw_dep = b.dependency("zglfw", .{});
+    const webgpu_backend = b.option(
+        zonk_build.WebgpuBackend,
+        "webgpu_backend",
+        "Set zonk/zgpu WebGPU backend",
+    ) orelse .wgpu;
+
+    const zonk = b.dependency("zonk", .{
+        .target = target,
+        .optimize = optimize,
+        .webgpu_backend = webgpu_backend,
+    }).module("zonk");
     const zstroke_mod = b.addModule("zstroke", .{
         .root_source_file = b.path("src/lib/root.zig"),
         .target = target,
@@ -18,14 +28,11 @@ pub fn build(b: *std.Build) void {
             .target = target,
             .optimize = optimize,
             .imports = &.{
-                .{ .name = "zgpu", .module = zgpu },
-                .{ .name = "zglfw", .module = zglfw_dep.module("root") },
+                .{ .name = "zonk", .module = zonk },
                 .{ .name = "zstroke", .module = zstroke_mod },
             },
         }),
     });
-
-    exe.root_module.linkLibrary(zglfw_dep.artifact("glfw"));
 
     b.installArtifact(exe);
 
@@ -35,8 +42,5 @@ pub fn build(b: *std.Build) void {
     run_step.dependOn(&run_cmd.step);
 
     run_cmd.step.dependOn(b.getInstallStep());
-
-    if (b.args) |args| {
-        run_cmd.addArgs(args);
-    }
+    run_cmd.addPassthruArgs();
 }

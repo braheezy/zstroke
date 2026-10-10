@@ -1,5 +1,4 @@
 const std = @import("std");
-const builtin = @import("builtin");
 const zstroke = @import("zstroke");
 
 const App = @import("App.zig");
@@ -75,24 +74,10 @@ fn buildStrokeMesh(
     };
 }
 
-pub fn main() !void {
-    // Memory allocation setup
-    var debug_allocator: std.heap.DebugAllocator(.{}) = .init;
-    // Memory allocation setup
-    const allocator, const is_debug = gpa: {
-        if (builtin.os.tag == .wasi) break :gpa .{ std.heap.wasm_allocator, false };
-        break :gpa switch (builtin.mode) {
-            .Debug, .ReleaseSafe => .{ debug_allocator.allocator(), true },
-            .ReleaseFast, .ReleaseSmall => .{ std.heap.smp_allocator, false },
-        };
-    };
-    defer if (is_debug) {
-        if (debug_allocator.deinit() == .leak) {
-            std.process.exit(1);
-        }
-    };
+pub fn main(process_init: std.process.Init) !void {
+    const allocator = process_init.gpa;
 
-    const app = try App.init(allocator, &buildStrokeMesh);
+    const app = try App.init(allocator, process_init.io, &buildStrokeMesh);
     defer app.deinit();
 
     while (app.isRunning()) {

@@ -5,14 +5,6 @@
     .paths = .{"src/"},
     .fingerprint = 0x79c4c10ddab56c1,
     .dependencies = .{
-        // To handle windowing and input
-        .zglfw = .{
-            .url = "git+https://github.com/zig-gamedev/zglfw#51003c105d23db378bb59ce415a387b22f1b0892",
-            .hash = "zglfw-0.10.0-dev-zgVDNIy4IQDJNRy4jrP1As-SZxfJpuWhU1iJ-wBab_VD",
-        },
-        .zgpu = .{
-            .url = "git+https://github.com/braheezy/zgpu#9d71285e1f9b86834aa2ad5051bd08350a53ecfa",
-            .hash = "zgpu-0.15.0-nqFT5MUaFQDt9wJqw_QcuNBMp9IvJDpgi52BWFWGu02S",
-        },
+        .zonk = .{ .path = "../zonk" },
     },
 }

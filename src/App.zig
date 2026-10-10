@@ -1,6 +1,8 @@
 const std = @import("std");
-const zglfw = @import("zglfw");
-const zgpu = @import("zgpu");
+const zonk = @import("zonk");
+const zglfw = zonk.zglfw;
+const zgpu = zonk.zgpu;
+
 const PointList = std.array_list.Managed([2]f32);
 
 pub const Vertex = [2]f32;
@@ -59,6 +61,7 @@ const wgsl =
 
 const App = @This();
 allocator: std.mem.Allocator,
+engine: *zonk.App,
 window: *zglfw.Window,
 gfx: *zgpu.GraphicsContext,
 stencil_pipeline: zgpu.RenderPipelineHandle = .{},
@@ -79,41 +82,32 @@ camera_zoom: f32 = 1.0,
 camera_pan: [2]f32 = .{ 0.0, 0.0 },
 pending_zoom_steps: f32 = 0.0,
 
-pub fn init(allocator: std.mem.Allocator, build_stroke_mesh: BuildStrokeMeshFn) !*App {
-    try zglfw.init();
-    errdefer zglfw.terminate();
-
-    zglfw.windowHint(.client_api, .no_api);
-    zglfw.windowHint(.resizable, false);
-    const window = try zglfw.createWindow(800, 600, "zstroke", null, null);
-    errdefer zglfw.destroyWindow(window);
+pub fn init(allocator: std.mem.Allocator, io: std.Io, build_stroke_mesh: BuildStrokeMeshFn) !*App {
+    const engine = try zonk.App.init(allocator, io, .{
+        .title = "zstroke",
+        .width = 800,
+        .height = 600,
+    }, .{
+        .title = "zstroke",
+        .width = 800,
+        .height = 600,
+    });
+    errdefer engine.deinit();
 
     const app = try allocator.create(App);
     errdefer allocator.destroy(app);
 
     app.* = .{
         .allocator = allocator,
-        .window = window,
-        .gfx = undefined,
+        .engine = engine,
+        .window = engine.window,
+        .gfx = engine.graphics.gfx,
         .input_points = PointList.init(allocator),
         .build_stroke_mesh = build_stroke_mesh,
     };
 
-    app.gfx = try zgpu.GraphicsContext.create(allocator, .{
-        .window = window,
-        .fn_getTime = @ptrCast(&zglfw.getTime),
-        .fn_getFramebufferSize = @ptrCast(&zglfw.Window.getFramebufferSize),
-        .fn_getWin32Window = @ptrCast(&zglfw.getWin32Window),
-        .fn_getX11Display = @ptrCast(&zglfw.getX11Display),
-        .fn_getX11Window = @ptrCast(&zglfw.getX11Window),
-        .fn_getWaylandDisplay = @ptrCast(&zglfw.getWaylandDisplay),
-        .fn_getWaylandSurface = @ptrCast(&zglfw.getWaylandWindow),
-        .fn_getCocoaWindow = @ptrCast(&zglfw.getCocoaWindow),
-    }, .{});
-
     try app.createPipelines();
     try app.createStencilTarget();
-    app.createCallbacks();
 
     return app;
 }
@@ -123,9 +117,7 @@ pub fn deinit(self: *App) void {
     if (self.gfx.isResourceValid(self.stencil_view)) self.gfx.releaseResource(self.stencil_view);
     if (self.gfx.isResourceValid(self.stencil_texture)) self.gfx.destroyResource(self.stencil_texture);
     self.input_points.deinit();
-    self.gfx.destroy(self.allocator);
-    zglfw.destroyWindow(self.window);
-    zglfw.terminate();
+    self.engine.deinit();
     self.allocator.destroy(self);
 }
 
@@ -135,6 +127,7 @@ pub fn isRunning(self: *App) bool {
 
 pub fn update(self: *App) !void {
     zglfw.pollEvents();
+    self.engine.input.update();
 
     self.updateZoomFromScroll();
     try self.updateDrawing();
@@ -246,7 +239,7 @@ fn createPipelines(self: *App) !void {
     }};
     const stencil_only_color_targets = [_]zgpu.wgpu.ColorTargetState{.{
         .format = zgpu.GraphicsContext.swapchain_format,
-        .write_mask = 0,
+        .write_mask = zgpu.wgpu.ColorWriteMasks.none,
     }};
 
     const vertex_attrs = [_]zgpu.wgpu.VertexAttribute{.{
@@ -266,7 +259,7 @@ fn createPipelines(self: *App) !void {
 
     const stencil_state_write = zgpu.wgpu.DepthStencilState{
         .format = .depth24_plus_stencil8,
-        .depth_write_enabled = .false,
+        .depth_write_enabled = zgpu.wgpu.compat.optionalBool(false),
         .depth_compare = .always,
         .stencil_front = .{
             .compare = .always,
@@ -286,7 +279,7 @@ fn createPipelines(self: *App) !void {
 
     const stencil_state_test = zgpu.wgpu.DepthStencilState{
         .format = .depth24_plus_stencil8,
-        .depth_write_enabled = .false,
+        .depth_write_enabled = zgpu.wgpu.compat.optionalBool(false),
         .depth_compare = .always,
         .stencil_front = .{
             .compare = .not_equal,
@@ -371,22 +364,6 @@ fn createStencilTarget(self: *App) !void {
         .format = .depth24_plus_stencil8,
         .dimension = .tvdim_2d,
     });
-}
-
-fn createCallbacks(self: *App) void {
-    self.window.setUserPointer(@ptrCast(self));
-    _ = self.window.setScrollCallback(struct {
-        fn cb(window: *zglfw.Window, x_offset: f64, y_offset: f64) callconv(.c) void {
-            _ = x_offset;
-            const app = window.getUserPointer(App) orelse return;
-            const modifier_pressed = window.getKey(.left_control) == .press or
-                window.getKey(.right_control) == .press or
-                window.getKey(.left_super) == .press or
-                window.getKey(.right_super) == .press;
-            if (!modifier_pressed) return;
-            app.pending_zoom_steps += @as(f32, @floatCast(y_offset));
-        }
-    }.cb);
 }
 
 fn updateDrawing(self: *App) !void {
